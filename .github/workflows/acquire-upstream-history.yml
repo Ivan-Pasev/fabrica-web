@@ -1,0 +1,30 @@
+# One-time acquisition workflow. This is bootstrap infrastructure, not a release.
+name: Acquire locked upstream history
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  acquire:
+    if: github.repository == 'Ivan-Pasev/fabrica-web'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Import verified GoogleChrome source lineage into a separate branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_SHA: 50854941da44b22670ef7b5a77bd9f19dd0dc8e2
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init --bare source-history.git
+          git -C source-history.git fetch --no-tags https://github.com/GoogleChrome/modern-web-guidance-src.git '+refs/heads/main:refs/remotes/upstream/main'
+          actual="$(git -C source-history.git rev-parse refs/remotes/upstream/main)"
+          if [ "$actual" != "$UPSTREAM_SHA" ]; then
+            echo "::error::Upstream main moved from the source-locked SHA; no import performed."
+            exit 1
+          fi
+          git -C source-history.git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 'refs/remotes/upstream/main:refs/heads/fab/upstream-source-locked'
